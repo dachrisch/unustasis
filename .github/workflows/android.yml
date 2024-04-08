@@ -32,7 +32,7 @@ jobs:
       - run: dart run build_runner build
       - run: flutter test
 
-  build-package:
+  build-package_apk:
     runs-on: ubuntu-latest
     needs: build-test
     steps:
@@ -53,6 +53,21 @@ jobs:
         with:
           name: unustasis-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+  build-package_appbundle:
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: pubspec.yaml # path to pubspec.yaml
+          cache: true
+      - name: Get Flutter dependencies
+        run: flutter pub get
       - name: Build AppBundle
         run: flutter build appbundle
       - name: Archive AppBundle
