@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:unustasis/flutter/blue_plus_mockable.dart';
 import 'package:unustasis/home_screen.dart';
 import 'package:unustasis/scooter_service.dart';
 
-import 'flutter/blue_plus_mockable.dart';
-
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
@@ -24,6 +23,9 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'Unustasis',
       darkTheme: ThemeData(
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+        ),
         textTheme: GoogleFonts.nunitoTextTheme(
             ThemeData(brightness: Brightness.dark).textTheme),
         brightness: Brightness.dark,
@@ -47,5 +49,11 @@ class _MyAppState extends State<MyApp> {
         scooterService: service,
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    service.dispose();
+    super.dispose();
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -27,6 +28,7 @@ class ScooterService {
   BluetoothCharacteristic? _cbbRemainingCapCharacteristic;
   BluetoothCharacteristic? _cbbFullCapCharacteristic;
   BluetoothCharacteristic? _cbbSOCCharacteristic;
+  BluetoothCharacteristic? _cbbChargingCharacteristic;
   BluetoothCharacteristic? _primaryCyclesCharacteristic;
   BluetoothCharacteristic? _primarySOCCharacteristic;
   BluetoothCharacteristic? _secondaryCyclesCharacteristic;
@@ -62,6 +64,10 @@ class ScooterService {
 
   final BehaviorSubject<int?> _cbbSOCController = BehaviorSubject<int?>();
   Stream<int?> get cbbSOC => _cbbSOCController.stream;
+
+  final BehaviorSubject<bool?> _cbbChargingController =
+      BehaviorSubject<bool?>();
+  Stream<bool?> get cbbCharging => _cbbChargingController.stream;
 
   final BehaviorSubject<int?> _primaryCyclesController =
       BehaviorSubject<int?>();
@@ -123,9 +129,15 @@ class ScooterService {
     }
   }
 
+  // spins up the whole connection process, and connects/bonds with the nearest scooter
   void start({bool restart = true}) async {
     _foundSth = false;
     // TODO: Turn on bluetooth if it's off, or prompt the user to do so on iOS
+    // Cleanup in case this is a restart
+    _connectedController.add(false);
+    if (myScooter != null) {
+      myScooter!.disconnect();
+    }
     // First, see if the phone is already actively connected to a scooter
     List<BluetoothDevice> systemScooters = await getSystemScooters();
     if (systemScooters.isNotEmpty) {
@@ -159,6 +171,7 @@ class ScooterService {
         } catch (e) {
           // Guess this one is not happy with us
           // TODO: we'll probably need some error handling here
+          log("Error during connect!");
           log(e.toString());
         }
       });
@@ -235,6 +248,10 @@ class ScooterService {
           myScooter!,
           "9a590060-6e67-5d0d-aab9-ad9126b66f91",
           "9a590061-6e67-5d0d-aab9-ad9126b66f91");
+      _cbbChargingCharacteristic = _findCharacteristic(
+          myScooter!,
+          "9a590060-6e67-5d0d-aab9-ad9126b66f91",
+          "9a590072-6e67-5d0d-aab9-ad9126b66f91");
       _primaryCyclesCharacteristic = _findCharacteristic(
           myScooter!,
           "9a5900e0-6e67-5d0d-aab9-ad9126b66f91",
@@ -285,30 +302,39 @@ class ScooterService {
         log("Aux SOC received: $soc");
         _auxSOCController.add(soc);
       });
-      // subscribe to CBB remaining capacity
-      _cbbRemainingCapCharacteristic!.setNotifyValue(true);
-      _cbbRemainingCapCharacteristic!.lastValueStream.listen((value) {
-        int? remainingCap = _convertUint32ToInt(value);
-        log("CBB remaining capacity received: $remainingCap");
-        cbbRemainingCap = remainingCap;
-        if (cbbRemainingCap != null && cbbFullCap != null) {
-          _cbbHealthController.add(cbbRemainingCap! / cbbFullCap!);
-        }
-      });
-      // subscribe to CBB full capacity
-      _cbbFullCapCharacteristic!.setNotifyValue(true);
-      _cbbFullCapCharacteristic!.lastValueStream.listen((value) {
-        int? fullCap = _convertUint32ToInt(value);
-        log("CBB full capacity received: $fullCap");
-        cbbFullCap = fullCap;
-        if (cbbRemainingCap != null && cbbFullCap != null) {
-          _cbbHealthController.add(cbbRemainingCap! / cbbFullCap!);
-        }
-      });
+      // // subscribe to CBB remaining capacity
+      // _cbbRemainingCapCharacteristic!.setNotifyValue(true);
+      // _cbbRemainingCapCharacteristic!.lastValueStream.listen((value) {
+      //   int? remainingCap = _convertUint32ToInt(value);
+      //   log("CBB remaining capacity received: $remainingCap");
+      //   cbbRemainingCap = remainingCap;
+      //   if (cbbRemainingCap != null && cbbFullCap != null) {
+      //     _cbbHealthController.add(cbbRemainingCap! / cbbFullCap!);
+      //   }
+      // });
+      // // subscribe to CBB full capacity
+      // _cbbFullCapCharacteristic!.setNotifyValue(true);
+      // _cbbFullCapCharacteristic!.lastValueStream.listen((value) {
+      //   int? fullCap = _convertUint32ToInt(value);
+      //   log("CBB full capacity received: $fullCap");
+      //   cbbFullCap = fullCap;
+      //   if (cbbRemainingCap != null && cbbFullCap != null) {
+      //     _cbbHealthController.add(cbbRemainingCap! / cbbFullCap!);
+      //   }
+      // });
       // Subscribe to internal CBB SOC
       _cbbSOCCharacteristic!.setNotifyValue(true);
       _cbbSOCCharacteristic!.lastValueStream.listen((value) {
         _cbbSOCController.add(value.firstOrNull);
+      });
+      // subscribe to CBB charging status
+      _subscribeBoolean(_cbbChargingCharacteristic!, "CBB charging",
+          (String chargingState) {
+        if (chargingState == "charging") {
+          _cbbChargingController.add(true);
+        } else if (chargingState == "not-charging") {
+          _cbbChargingController.add(false);
+        }
       });
       // Subscribe to primary battery charge cycles
       _primaryCyclesCharacteristic!.setNotifyValue(true);
@@ -344,6 +370,7 @@ class ScooterService {
       _handlebarCharacteristic!.read();
       _auxSOCCharacteristic!.read();
       _cbbSOCCharacteristic!.read();
+      _cbbChargingCharacteristic!.read();
       _primaryCyclesCharacteristic!.read();
       _primarySOCCharacteristic!.read();
       _secondaryCyclesCharacteristic!.read();
@@ -355,6 +382,7 @@ class ScooterService {
 
   BluetoothCharacteristic? _findCharacteristic(
       BluetoothDevice device, String serviceUuid, String characteristicUuid) {
+    log("Finding characteristic $characteristicUuid in service $serviceUuid...");
     return device.servicesList
         .firstWhere((service) => service.serviceUuid.toString() == serviceUuid)
         .characteristics
@@ -460,12 +488,13 @@ class ScooterService {
 
   void forgetSavedScooter() async {
     stopAutoRestart();
+    _connectedController.add(false);
     savedScooterId = null;
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.remove("savedScooterId");
-    // if (Platform.isAndroid) {
-    //   myScooter?.removeBond();
-    // }
+    if (Platform.isAndroid) {
+      myScooter?.removeBond();
+    }
   }
 
   void setSavedScooter(String id) async {
