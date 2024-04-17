@@ -27,6 +27,8 @@ jobs:
           channel: stable
           flutter-version-file: pubspec.yaml # path to pubspec.yaml
           cache: true
+      - name: Flutter infos
+        run: flutter doctor -v
       - name: Get Flutter dependencies
         run: flutter pub get
       - run: dart run build_runner build
