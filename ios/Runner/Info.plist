@@ -26,8 +26,14 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true />
+		<key>NSBluetoothPeripheralUsageDescription</key>
+		<string>Bluetooth is required to connect to your unu scooter wirelessly</string>
 		<key>NSBluetoothAlwaysUsageDescription</key>
 		<string>Bluetooth is required to connect to your unu scooter wirelessly</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>Location is required to remember where your scooter was last seen</string>
+		<key>NFCReaderUsageDescription </key>
+		<string>NFC is required to read data from batteries directly</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true />
 		<key>UILaunchStoryboardName</key>
@@ -37,8 +43,6 @@
 		<key>UISupportedInterfaceOrientations</key>
 		<array>
 			<string>UIInterfaceOrientationPortrait</string>
-			<string>UIInterfaceOrientationLandscapeLeft</string>
-			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
 		<key>UISupportedInterfaceOrientations~ipad</key>
 		<array>
